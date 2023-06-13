@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace muqsit\vanillagenerator\generator\object\tree;
 
-use pocketmine\block\BlockFactory;
+use pocketmine\block\RuntimeBlockStateRegistry;
 use pocketmine\math\Axis;
 use pocketmine\math\Vector3;
 use pocketmine\utils\Random;
@@ -76,7 +76,7 @@ class BigOakTree extends GenericTree{
 			$this->transaction->addBlockAt($source_x, $source_y + $y, $source_z, $this->log_type);
 		}
 
-		$block_factory = BlockFactory::getInstance();
+		$block_factory = RuntimeBlockStateRegistry::getInstance();
 
 		// generate the branches
 		foreach($leaf_nodes as $node){

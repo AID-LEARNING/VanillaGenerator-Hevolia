@@ -19,6 +19,7 @@ use muqsit\vanillagenerator\generator\noise\glowstone\PerlinOctaveGenerator;
 use muqsit\vanillagenerator\generator\noise\glowstone\SimplexOctaveGenerator;
 use muqsit\vanillagenerator\generator\overworld\biome\BiomeHeightManager;
 use muqsit\vanillagenerator\generator\overworld\biome\BiomeIds;
+use muqsit\vanillagenerator\generator\overworld\populator\CavePopulator;
 use muqsit\vanillagenerator\generator\overworld\populator\OverworldPopulator;
 use muqsit\vanillagenerator\generator\overworld\populator\SnowPopulator;
 use muqsit\vanillagenerator\generator\utils\preset\SimpleGeneratorPreset;
@@ -29,6 +30,7 @@ use pocketmine\block\VanillaBlocks;
 use pocketmine\utils\Random;
 use pocketmine\world\ChunkManager;
 use pocketmine\world\format\Chunk;
+use pocketmine\world\World;
 use function array_key_exists;
 
 /**
@@ -41,6 +43,7 @@ class OverworldGenerator extends VanillaGenerator{
 
 	/** @var GroundGenerator[] */
 	protected static array $GROUND_MAP = [];
+	private CavePopulator $postChunkGenerate;
 
 	/**
 	 * @param int $x 0-4
@@ -126,13 +129,15 @@ class OverworldGenerator extends VanillaGenerator{
 		);
 		$this->ground_gen = new GroundGenerator();
 		$this->addPopulators(new OverworldPopulator(), new SnowPopulator());
+		$this->postChunkGenerate = new CavePopulator();
 	}
 
 	public function getGroundGenerator() : GroundGenerator{
 		return $this->ground_gen;
 	}
 
-	protected function generateChunkData(ChunkManager $world, int $chunk_x, int $chunk_z, VanillaBiomeGrid $grid) : void{
+	protected function generateChunkData(ChunkManager $world, int $chunk_x, int $chunk_z, VanillaBiomeGrid $grid) : void
+	{
 		$this->generateRawTerrain($world, $chunk_x, $chunk_z);
 
 		$cx = $chunk_x << Chunk::COORD_BIT_SIZE;
@@ -148,16 +153,20 @@ class OverworldGenerator extends VanillaGenerator{
 		/** @var Chunk $chunk */
 		$chunk = $world->getChunk($chunk_x, $chunk_z);
 
-		for($x = 0; $x < $size_x; ++$x){
-			for($z = 0; $z < $size_z; ++$z){
-				$chunk->setBiomeId($x, $z, $id = $grid->getBiome($x, $z));
-				if($id !== null && array_key_exists($id, self::$GROUND_MAP)){
+		for ($x = 0; $x < $size_x; ++$x) {
+			for ($z = 0; $z < $size_z; ++$z) {
+				$id = $grid->getBiome($x, $z);
+				for($y = World::Y_MIN; $y < World::Y_MAX; $y++){
+					$chunk->setBiomeId($x, $y, $z, $id);
+				}
+				if ($id !== null && array_key_exists($id, self::$GROUND_MAP)) {
 					self::$GROUND_MAP[$id]->generateTerrainColumn($world, $this->random, $cx + $x, $cz + $z, $id, $surface_noise[$x | $z << Chunk::COORD_BIT_SIZE]);
-				}else{
+				} else {
 					$this->ground_gen->generateTerrainColumn($world, $this->random, $cx + $x, $cz + $z, $id, $surface_noise[$x | $z << Chunk::COORD_BIT_SIZE]);
 				}
 			}
 		}
+		$this->postChunkGenerate->populate($world, $this->random, $chunk_x, $chunk_z, $chunk);
 	}
 
 	protected function createWorldOctaves() : WorldOctaves{
@@ -244,22 +253,22 @@ class OverworldGenerator extends VanillaGenerator{
 								// the target is density_offset + 0, since the default target is
 								// 0, so don't get too confused by the naming :)
 								if($afill === 1 || $afill === 10 || $afill === 13 || $afill === 16){
-									$sub_chunk->setFullBlock($m + ($i << 2), $y_block_pos, $n + ($j << 2), $water);
+									$sub_chunk->setBlockStateId($m + ($i << 2), $y_block_pos, $n + ($j << 2), $water);
 								}elseif($afill === 2 || $afill === 9 || $afill === 12 || $afill === 15){
-									$sub_chunk->setFullBlock($m + ($i << 2), $y_block_pos, $n + ($j << 2), $stone);
+									$sub_chunk->setBlockStateId($m + ($i << 2), $y_block_pos, $n + ($j << 2), $stone);
 								}
 
 								if(($dens > $density_offset && $fill > -1) || ($dens <= $density_offset && $fill < 0)){
 									if($afill === 0 || $afill === 3 || $afill === 6 || $afill === 9 || $afill === 12){
-										$sub_chunk->setFullBlock($m + ($i << 2), $y_block_pos, $n + ($j << 2), $stone);
+										$sub_chunk->setBlockStateId($m + ($i << 2), $y_block_pos, $n + ($j << 2), $stone);
 									}elseif($afill === 2 || $afill === 7 || $afill === 10 || $afill === 16){
-										$sub_chunk->setFullBlock($m + ($i << 2), $y_block_pos, $n + ($j << 2), $still_water);
+										$sub_chunk->setBlockStateId($m + ($i << 2), $y_block_pos, $n + ($j << 2), $still_water);
 									}
 								}elseif(($y_pos < $sea_level - 1 && $sea_fill === 0) || ($y_pos >= $sea_level - 1 && $sea_fill === 1)){
 									if($afill === 0 || $afill === 3 || $afill === 7 || $afill === 10 || $afill === 13){
-										$sub_chunk->setFullBlock($m + ($i << 2), $y_block_pos, $n + ($j << 2), $still_water);
+										$sub_chunk->setBlockStateId($m + ($i << 2), $y_block_pos, $n + ($j << 2), $still_water);
 									}elseif($afill === 1 || $afill === 6 || $afill === 9 || $afill === 15){
-										$sub_chunk->setFullBlock($m + ($i << 2), $y_block_pos, $n + ($j << 2), $stone);
+										$sub_chunk->setBlockStateId($m + ($i << 2), $y_block_pos, $n + ($j << 2), $stone);
 									}
 								}
 
